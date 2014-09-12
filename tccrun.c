@@ -33,6 +33,10 @@ ST_DATA void *rt_prog_main;
 #define ucontext_t CONTEXT
 #endif
 
+#ifdef TCC_ANDROID
+# include "android/ucontext.h"
+#endif
+
 static void set_pages_executable(void *ptr, unsigned long length);
 static void set_exception_handler(void);
 static int rt_get_caller_pc(addr_t *paddr, ucontext_t *uc, int level);

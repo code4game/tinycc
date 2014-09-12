@@ -1957,6 +1957,10 @@ static void parse_number(const char *p)
 #ifdef TCC_TARGET_PE
                 tok = TOK_CDOUBLE;
                 tokc.d = strtod(token_buf, NULL);
+#elif defined(TCC_ANDROID)
+                // same as pe
+                tok = TOK_CDOUBLE;
+                tokc.d = strtod(token_buf, NULL);
 #else
                 tok = TOK_CLDOUBLE;
                 tokc.ld = strtold(token_buf, NULL);

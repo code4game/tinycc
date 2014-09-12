@@ -43,7 +43,9 @@
 #ifndef _WIN32
 # include <unistd.h>
 # include <sys/time.h>
+#ifndef TCC_ANDROID
 # include <sys/ucontext.h>
+#endif // TCC_ANDROID
 # include <sys/mman.h>
 # ifndef CONFIG_TCC_STATIC
 #  include <dlfcn.h>

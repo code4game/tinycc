@@ -44,7 +44,7 @@
 # include <unistd.h>
 # include <sys/time.h>
 #ifndef TCC_ANDROID
-# include <sys/ucontext.h>
+# include <android/ucontext.h>
 #endif // TCC_ANDROID
 # include <sys/mman.h>
 # ifndef CONFIG_TCC_STATIC

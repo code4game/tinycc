@@ -11,13 +11,13 @@ __bound_alloca:
     and     $-4,%eax
     jz      p6
 
-#ifdef TCC_TARGET_PE
+#ifdef _WIN32
 p4:
     cmp     $4096,%eax
-    jle     p5
+    jbe     p5
+    test    %eax,-4096(%esp)
     sub     $4096,%esp
     sub     $4096,%eax
-    test    %eax,(%esp)
     jmp p4
 
 p5:

@@ -31,6 +31,8 @@
 #define __need_wchar_t
 #include "stddef.h"
 
+#ifndef __int8_t_defined
+#define __int8_t_defined
 /* 7.18.1.1  Exact-width integer types */
 typedef signed char int8_t;
 typedef unsigned char   uint8_t;
@@ -40,6 +42,7 @@ typedef int  int32_t;
 typedef unsigned   uint32_t;
 typedef long long  int64_t;
 typedef unsigned long long   uint64_t;
+#endif
 
 /* 7.18.1.2  Minimum-width integer types */
 typedef signed char int_least8_t;
@@ -175,7 +178,7 @@ typedef unsigned long long   uintmax_t;
 
 /* 7.18.4.1  Macros for minimum-width integer constants
 
-    Accoding to Douglas Gwyn <gwyn@arl.mil>:
+    According to Douglas Gwyn <gwyn@arl.mil>:
 	"This spec was changed in ISO/IEC 9899:1999 TC1; in ISO/IEC
 	9899:1999 as initially published, the expansion was required
 	to be an integer constant of precisely matching type, which

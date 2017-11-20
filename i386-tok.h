@@ -91,7 +91,16 @@
  DEF_ASM(fs)
  DEF_ASM(gs)
  DEF_ASM(st)
+ DEF_ASM(rip)
 
+#ifdef TCC_TARGET_X86_64
+ /* The four low parts of sp/bp/si/di that exist only on
+    x86-64 (encoding aliased to ah,ch,dh,dh when not using REX). */
+ DEF_ASM(spl)
+ DEF_ASM(bpl)
+ DEF_ASM(sil)
+ DEF_ASM(dil)
+#endif
  /* generic two operands */
  DEF_BWLX(mov)
 
@@ -126,12 +135,8 @@
  DEF_BWLX(shr)
  DEF_BWLX(sar)
 
- DEF_ASM(shldw)
- DEF_ASM(shldl)
- DEF_ASM(shld)
- DEF_ASM(shrdw)
- DEF_ASM(shrdl)
- DEF_ASM(shrd)
+ DEF_WLX(shld)
+ DEF_WLX(shrd)
 
  DEF_ASM(pushw)
  DEF_ASM(pushl)
@@ -150,12 +155,15 @@
  DEF_BWL(in)
  DEF_BWL(out)
 
- DEF_WL(movzb)
+ DEF_WLX(movzb)
  DEF_ASM(movzwl)
  DEF_ASM(movsbw)
  DEF_ASM(movsbl)
  DEF_ASM(movswl)
 #ifdef TCC_TARGET_X86_64
+ DEF_ASM(movsbq)
+ DEF_ASM(movswq)
+ DEF_ASM(movzwq)
  DEF_ASM(movslq)
 #endif
 
@@ -172,10 +180,11 @@
  DEF_ASM(lcall)
  DEF_ASM(ljmp)
 
- DEF_ASMTEST(j)
+ DEF_ASMTEST(j,)
 
- DEF_ASMTEST(set)
- DEF_ASMTEST(cmov)
+ DEF_ASMTEST(set,)
+ DEF_ASMTEST(set,b)
+ DEF_ASMTEST(cmov,)
 
  DEF_WLX(bsf)
  DEF_WLX(bsr)
@@ -184,6 +193,7 @@
  DEF_WLX(btr)
  DEF_WLX(btc)
 
+ DEF_WLX(lar)
  DEF_WLX(lsl)
 
  /* generic FP ops */
@@ -191,7 +201,7 @@
  DEF_FP(mul)
 
  DEF_ASM(fcom)
- DEF_ASM(fcom_1) /* non existant op, just to have a regular table */
+ DEF_ASM(fcom_1) /* non existent op, just to have a regular table */
  DEF_FP1(com)
 
  DEF_FP(comp)

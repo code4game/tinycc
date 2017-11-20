@@ -103,14 +103,14 @@ union double_long {
 
 union float_long {
     float f;
-    long l;
+    unsigned int l;
 };
 
 /* XXX: we don't support several builtin supports for now */
-#ifndef __x86_64__
+#if !defined __x86_64__ && !defined __arm__
 
 /* XXX: use gcc/tcc intrinsic ? */
-#if defined(__i386__)
+#if defined __i386__
 #define sub_ddmmss(sh, sl, ah, al, bh, bl) \
   __asm__ ("subl %5,%1\n\tsbbl %3,%0"					\
 	   : "=r" ((USItype) (sh)),					\
@@ -478,13 +478,6 @@ long long __ashldi3(long long a, int b)
 #endif
 }
 
-#if defined(__i386__)
-/* FPU control word for rounding to nearest mode */
-unsigned short __tcc_fpu_control = 0x137f;
-/* FPU control word for round to zero mode for int conversion */
-unsigned short __tcc_int_fpu_control = 0x137f | 0x0c00;
-#endif
-
 #endif /* !__x86_64__ */
 
 /* XXX: fix tcc's code generator to do this instead */
@@ -557,6 +550,13 @@ unsigned long long __fixunssfdi (float a1)
         return 0;
 }
 
+long long __fixsfdi (float a1)
+{
+    long long ret; int s;
+    ret = __fixunssfdi((s = a1 >= 0) ? a1 : -a1);
+    return s ? ret : -ret;
+}
+
 unsigned long long __fixunsdfdi (double a1)
 {
     register union double_long dl1;
@@ -582,6 +582,14 @@ unsigned long long __fixunsdfdi (double a1)
         return 0;
 }
 
+long long __fixdfdi (double a1)
+{
+    long long ret; int s;
+    ret = __fixunsdfdi((s = a1 >= 0) ? a1 : -a1);
+    return s ? ret : -ret;
+}
+
+#ifndef __arm__
 unsigned long long __fixunsxfdi (long double a1)
 {
     register union ldouble_long dl1;
@@ -605,87 +613,10 @@ unsigned long long __fixunsxfdi (long double a1)
         return 0;
 }
 
-#if defined(__x86_64__) && !defined(_WIN64)
-
-/* helper functions for stdarg.h */
-
-#include <stdlib.h>
-#ifndef __TINYC__
-/* gives "incompatible types for redefinition of __va_arg" below */
-#include <stdio.h>
-#endif
-
-enum __va_arg_type {
-    __va_gen_reg, __va_float_reg, __va_stack
-};
-
-/* GCC compatible definition of va_list. */
-struct __va_list_struct {
-    unsigned int gp_offset;
-    unsigned int fp_offset;
-    union {
-        unsigned int overflow_offset;
-        char *overflow_arg_area;
-    };
-    char *reg_save_area;
-};
-
-void *__va_start(void *fp)
+long long __fixxfdi (long double a1)
 {
-    struct __va_list_struct *ap =
-        (struct __va_list_struct *)malloc(sizeof(struct __va_list_struct));
-    *ap = *(struct __va_list_struct *)((char *)fp - 16);
-    ap->overflow_arg_area = (char *)fp + ap->overflow_offset;
-    ap->reg_save_area = (char *)fp - 176 - 16;
-    return ap;
+    long long ret; int s;
+    ret = __fixunsxfdi((s = a1 >= 0) ? a1 : -a1);
+    return s ? ret : -ret;
 }
-
-void *__va_arg(struct __va_list_struct *ap,
-               enum __va_arg_type arg_type,
-               int size)
-{
-    size = (size + 7) & ~7;
-    switch (arg_type) {
-    case __va_gen_reg:
-        if (ap->gp_offset < 48) {
-            ap->gp_offset += 8;
-            return ap->reg_save_area + ap->gp_offset - 8;
-        }
-        size = 8;
-        goto use_overflow_area;
-
-    case __va_float_reg:
-        if (ap->fp_offset < 128 + 48) {
-            ap->fp_offset += 16;
-            return ap->reg_save_area + ap->fp_offset - 16;
-        }
-        size = 8;
-        goto use_overflow_area;
-
-    case __va_stack:
-    use_overflow_area:
-        ap->overflow_arg_area += size;
-        return ap->overflow_arg_area - size;
-
-    default:
-#ifndef __TINYC__
-        fprintf(stderr, "unknown ABI type for __va_arg\n");
-#endif
-        abort();
-    }
-}
-
-void *__va_copy(struct __va_list_struct *src)
-{
-    struct __va_list_struct *dest =
-        (struct __va_list_struct *)malloc(sizeof(struct __va_list_struct));
-    *dest = *src;
-    return dest;
-}
-
-void __va_end(struct __va_list_struct *ap)
-{
-    free(ap);
-}
-
-#endif /* __x86_64__ */
+#endif /* !ARM */

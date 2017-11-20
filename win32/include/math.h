@@ -313,13 +313,9 @@ extern "C" {
 
   extern int __cdecl __fpclassifyf (float);
   extern int __cdecl __fpclassify (double);
+  extern int __cdecl __fpclassifyl (long double);
 
-  __CRT_INLINE int __cdecl __fpclassifyl (long double x){
-    unsigned short sw;
-    __asm__ ("fxam; fstsw %%ax;" : "=a" (sw): "t" (x));
-    return sw & (FP_NAN | FP_NORMAL | FP_ZERO );
-  }
-
+/* Implemented at tcc/tcc_libm.h */
 #define fpclassify(x) (sizeof (x) == sizeof (float) ? __fpclassifyf (x)	  \
   : sizeof (x) == sizeof (double) ? __fpclassify (x) \
   : __fpclassifyl (x))
@@ -331,63 +327,20 @@ extern "C" {
 #define isinf(x) (fpclassify(x) == FP_INFINITE)
 
   /* 7.12.3.4 */
-  /* We don't need to worry about trucation here:
+  /* We don't need to worry about truncation here:
   A NaN stays a NaN. */
-
-  __CRT_INLINE int __cdecl __isnan (double _x)
-  {
-    unsigned short sw;
-    __asm__ ("fxam;"
-      "fstsw %%ax": "=a" (sw) : "t" (_x));
-    return (sw & (FP_NAN | FP_NORMAL | FP_INFINITE | FP_ZERO | FP_SUBNORMAL))
-      == FP_NAN;
-  }
-
-  __CRT_INLINE int __cdecl __isnanf (float _x)
-  {
-    unsigned short sw;
-    __asm__ ("fxam;"
-      "fstsw %%ax": "=a" (sw) : "t" (_x));
-    return (sw & (FP_NAN | FP_NORMAL | FP_INFINITE | FP_ZERO | FP_SUBNORMAL))
-      == FP_NAN;
-  }
-
-  __CRT_INLINE int __cdecl __isnanl (long double _x)
-  {
-    unsigned short sw;
-    __asm__ ("fxam;"
-      "fstsw %%ax": "=a" (sw) : "t" (_x));
-    return (sw & (FP_NAN | FP_NORMAL | FP_INFINITE | FP_ZERO | FP_SUBNORMAL))
-      == FP_NAN;
-  }
-
-
-#define isnan(x) (sizeof (x) == sizeof (float) ? __isnanf (x)	\
-  : sizeof (x) == sizeof (double) ? __isnan (x)	\
-  : __isnanl (x))
+#define isnan(x) (fpclassify(x) == FP_NAN)
 
   /* 7.12.3.5 */
 #define isnormal(x) (fpclassify(x) == FP_NORMAL)
 
   /* 7.12.3.6 The signbit macro */
-  __CRT_INLINE int __cdecl __signbit (double x) {
-    unsigned short stw;
-    __asm__ ( "fxam; fstsw %%ax;": "=a" (stw) : "t" (x));
-    return stw & 0x0200;
-  }
 
-  __CRT_INLINE int __cdecl __signbitf (float x) {
-    unsigned short stw;
-    __asm__ ("fxam; fstsw %%ax;": "=a" (stw) : "t" (x));
-    return stw & 0x0200;
-  }
+  extern int __cdecl __signbitf (float);
+  extern int __cdecl __signbit (double);
+  extern int __cdecl __signbitl (long double);
 
-  __CRT_INLINE int __cdecl __signbitl (long double x) {
-    unsigned short stw;
-    __asm__ ("fxam; fstsw %%ax;": "=a" (stw) : "t" (x));
-    return stw & 0x0200;
-  }
-
+/* Implemented at tcc/tcc_libm.h */
 #define signbit(x) (sizeof (x) == sizeof (float) ? __signbitf (x)	\
   : sizeof (x) == sizeof (double) ? __signbit (x)	\
   : __signbitl (x))
@@ -515,21 +468,30 @@ extern "C" {
   __CRT_INLINE double __cdecl rint (double x)
   {
     double retval;
-    __asm__ ("frndint;": "=t" (retval) : "0" (x));
+    __asm__ (
+      "fldl    %1\n"
+      "frndint   \n"
+      "fstl    %0\n" : "=m" (retval) : "m" (x));
     return retval;
   }
 
   __CRT_INLINE float __cdecl rintf (float x)
   {
     float retval;
-    __asm__ ("frndint;" : "=t" (retval) : "0" (x) );
+    __asm__ (
+      "flds    %1\n"
+      "frndint   \n"
+      "fsts    %0\n" : "=m" (retval) : "m" (x));
     return retval;
   }
 
   __CRT_INLINE long double __cdecl rintl (long double x)
   {
     long double retval;
-    __asm__ ("frndint;" : "=t" (retval) : "0" (x) );
+    __asm__ (
+      "fldt    %1\n"
+      "frndint   \n"
+      "fstt    %0\n" : "=m" (retval) : "m" (x));
     return retval;
   }
 
@@ -537,49 +499,76 @@ extern "C" {
   __CRT_INLINE long __cdecl lrint (double x) 
   {
     long retval;  
-    __asm__ __volatile__							      \
-      ("fistpl %0"  : "=m" (retval) : "t" (x) : "st");				      \
+    __asm__ __volatile__                         \
+      ("fldl   %1\n"                             \
+       "fistpl %0"  : "=m" (retval) : "m" (x));  \
       return retval;
   }
 
   __CRT_INLINE long __cdecl lrintf (float x) 
   {
     long retval;
-    __asm__ __volatile__							      \
-      ("fistpl %0"  : "=m" (retval) : "t" (x) : "st");				      \
+    __asm__ __volatile__                         \
+      ("flds   %1\n"                             \
+       "fistpl %0"  : "=m" (retval) : "m" (x));  \
       return retval;
   }
 
   __CRT_INLINE long __cdecl lrintl (long double x) 
   {
     long retval;
-    __asm__ __volatile__							      \
-      ("fistpl %0"  : "=m" (retval) : "t" (x) : "st");				      \
+    __asm__ __volatile__                         \
+      ("fldt   %1\n"                             \
+       "fistpl %0"  : "=m" (retval) : "m" (x));  \
       return retval;
   }
 
   __CRT_INLINE long long __cdecl llrint (double x) 
   {
     long long retval;
-    __asm__ __volatile__							      \
-      ("fistpll %0"  : "=m" (retval) : "t" (x) : "st");				      \
+    __asm__ __volatile__                         \
+      ("fldl    %1\n"                            \
+       "fistpll %0"  : "=m" (retval) : "m" (x)); \
       return retval;
   }
 
   __CRT_INLINE long long __cdecl llrintf (float x) 
   {
     long long retval;
-    __asm__ __volatile__							      \
-      ("fistpll %0"  : "=m" (retval) : "t" (x) : "st");				      \
+    __asm__ __volatile__                         \
+      ("flds   %1\n"                             \
+       "fistpll %0"  : "=m" (retval) : "m" (x)); \
       return retval;
   }
 
   __CRT_INLINE long long __cdecl llrintl (long double x) 
   {
     long long retval;
-    __asm__ __volatile__							      \
-      ("fistpll %0"  : "=m" (retval) : "t" (x) : "st");				      \
+    __asm__ __volatile__                         \
+      ("fldt    %1\n"                            \
+       "fistpll %0"  : "=m" (retval) : "m" (x)); \
       return retval;
+  }
+
+  #define FE_TONEAREST	0x0000
+  #define FE_DOWNWARD	0x0400
+  #define FE_UPWARD	0x0800
+  #define FE_TOWARDZERO	0x0c00
+
+  __CRT_INLINE double trunc (double _x)
+  {
+    double retval;
+    unsigned short saved_cw;
+    unsigned short tmp_cw;
+    __asm__ ("fnstcw %0;" : "=m" (saved_cw)); /* save FPU control word */
+    tmp_cw = (saved_cw & ~(FE_TONEAREST | FE_DOWNWARD | FE_UPWARD | FE_TOWARDZERO))
+	    | FE_TOWARDZERO;
+    __asm__ ("fldcw %0;" : : "m" (tmp_cw));
+    __asm__ ("fldl  %1;"
+             "frndint;"
+             "fstl  %0;" : "=m" (retval)  : "m" (_x)); /* round towards zero */
+    __asm__ ("fldcw %0;" : : "m" (saved_cw) ); /* restore saved control word */
+    return retval;
   }
 
   /* 7.12.9.6 */
@@ -666,6 +655,7 @@ extern "C" {
   extern long double __cdecl fmal (long double, long double, long double);
 
 
+#if 0 // gr: duplicate, see below
   /* 7.12.14 */
   /* 
   *  With these functions, comparisons involving quiet NaNs set the FP
@@ -708,6 +698,7 @@ extern "C" {
   & 0x4500) == 0x4500)
 
 #endif
+#endif //0
 
 
 #endif /* __STDC_VERSION__ >= 199901L */
@@ -739,39 +730,8 @@ extern "C++" {
  *  which always returns true: yes, (NaN != NaN) is true).
  */
 
-#if __GNUC__ >= 3
-
-#define isgreater(x, y) __builtin_isgreater(x, y)
-#define isgreaterequal(x, y) __builtin_isgreaterequal(x, y)
-#define isless(x, y) __builtin_isless(x, y)
-#define islessequal(x, y) __builtin_islessequal(x, y)
-#define islessgreater(x, y) __builtin_islessgreater(x, y)
-#define isunordered(x, y) __builtin_isunordered(x, y)
-
-#else
-/*  helper  */
-__CRT_INLINE int  __cdecl
-__fp_unordered_compare (long double x, long double y){
-  unsigned short retval;
-  __asm__ ("fucom %%st(1);"
-	   "fnstsw;": "=a" (retval) : "t" (x), "u" (y));
-  return retval;
-}
-
-#define isgreater(x, y) ((__fp_unordered_compare(x, y) \
-			   & 0x4500) == 0)
-#define isless(x, y) ((__fp_unordered_compare (y, x) \
-                       & 0x4500) == 0)
-#define isgreaterequal(x, y) ((__fp_unordered_compare (x, y) \
-                               & FP_INFINITE) == 0)
-#define islessequal(x, y) ((__fp_unordered_compare(y, x) \
-			    & FP_INFINITE) == 0)
-#define islessgreater(x, y) ((__fp_unordered_compare(x, y) \
-			      & FP_SUBNORMAL) == 0)
-#define isunordered(x, y) ((__fp_unordered_compare(x, y) \
-			    & 0x4500) == 0x4500)
-
-#endif
+/* Mini libm (inline __fpclassify*, __signbit* and variants) */
+#include "tcc/tcc_libm.h"
 
 #endif /* End _MATH_H_ */
 

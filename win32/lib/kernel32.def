@@ -288,6 +288,8 @@ GetModuleFileNameA
 GetModuleFileNameW
 GetModuleHandleA
 GetModuleHandleW
+GetModuleHandleExA
+GetModuleHandleExW
 GetNamedPipeHandleStateA
 GetNamedPipeHandleStateW
 GetNamedPipeInfo
@@ -550,10 +552,12 @@ ResetNLSUserInfoCache
 ResetWriteWatch
 ResumeThread
 RtlAddFunctionTable
+RtlDeleteFunctionTable
 RtlFillMemory
 RtlInstallFunctionTableCallback
 RtlMoveMemory
 RtlUnwind
+RtlUnwindEx
 RtlZeroMemory
 SMapLS
 SMapLS_IP_EBP_12
@@ -616,6 +620,7 @@ SetFileApisToOEM
 SetFileAttributesA
 SetFileAttributesW
 SetFilePointer
+SetFilePointerEx
 SetFileTime
 SetHandleContext
 SetHandleCount

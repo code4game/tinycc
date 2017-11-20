@@ -18,6 +18,8 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
+#error this code has bit-rotted since 2003
+
 /* number of available registers */
 #define NB_REGS             3
 
@@ -53,11 +55,11 @@ const int reg_classes[NB_REGS] = {
 #define REG_FRET REG_ST0 /* float return register */
 
 /* defined if function parameters must be evaluated in reverse order */
-//#define INVERT_FUNC_PARAMS
+/* #define INVERT_FUNC_PARAMS */
 
 /* defined if structures are passed as pointers. Otherwise structures
    are directly pushed on stack. */
-//#define FUNC_STRUCT_PARAM_AS_PTR
+/* #define FUNC_STRUCT_PARAM_AS_PTR */
 
 /* pointer size, in bytes */
 #define PTR_SIZE 4
@@ -441,6 +443,7 @@ void gfunc_prolog(int t)
     /* if the function returns a structure, then add an
        implicit pointer parameter */
     func_vt = sym->t;
+    func_var = (sym->c == FUNC_ELLIPSIS);
     if ((func_vt & VT_BTYPE) == VT_STRUCT) {
         func_vc = addr;
         addr++;
@@ -528,19 +531,6 @@ int gtst(int inv, int t)
             t = gjmp(t);
             gsym(vtop->c.i);
         }
-    } else {
-        if (is_float(vtop->t)) {
-            vpushi(0);
-            gen_op(TOK_NE);
-        }
-        if ((vtop->r & (VT_VALMASK | VT_LVAL | VT_FORWARD)) == VT_CONST) {
-            /* constant jmp optimization */
-            if ((vtop->c.i != 0) != inv) 
-                t = gjmp(t);
-        } else {
-            v = gv(RC_INT);
-            t = out_opj(IL_OP_BRTRUE - inv, t);
-        }
     }
     vtop--;
     return t;
@@ -612,7 +602,7 @@ void gen_opi(int op)
 }
 
 /* generate a floating point operation 'v = t1 op t2' instruction. The
-   two operands are guaranted to have the same floating point type */
+   two operands are guaranteed to have the same floating point type */
 void gen_opf(int op)
 {
     /* same as integer */

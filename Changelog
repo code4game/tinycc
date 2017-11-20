@@ -1,3 +1,46 @@
+Version 0.9.27:
+
+User interface:
+- -x[c|a|n] filetype option (Sergey Korshunoff)
+- -P[1], -dD, -dM preprocessor options (Sergey Korshunoff)
+- -Wl,-(no-)whole-archive linker option (Reuben Thomas)
+- -mms-bitfields option (David Mertens)
+- -include <file> option (Michael Matz)
+- -mno-sse on x86-64 disables use of SSE instructions
+- @listfile support (Vlad Vissoultchev)
+- tcc -ar/-impdef - formerly tiny_xxx tools integrated (grischka)
+- CPATH, C_INCLUDE_PATH and LIBRARY_PATH environment variables support
+  (Andrew Aladjev, Urs Janssen)
+
+Platforms:
+- new AARCH64 (arm64) target (Edmund Grimley Evans)
+- vastly improved support for ARM hard float calling convention
+   (Thomas Preud'homme, Daniel GlÃ¶ckner)
+- provide a runtime library for ARM (Thomas Preud'homme)
+- many x86_64 ABI fixes incl. XMM register passing and tests (James Lyon)
+- ABI tests with native compiler using libtcc (James Lyon)
+- UNICODE startup code supports wmain and wWinMain (YX Hao)
+- shared libraries for x86_64 (Michael Matz)
+- Bootstrap native Windows 32/64 compiler using Cygwin+gcc (Christian Jullien)
+
+Features:
+- VLA (variable length array) improved (James Lyon, Pip Cet)
+- import functions by ordinal in .def files on windows (YX Hao)
+- x86/x86_64 assembler much improved (Michael Matz)
+- simple dead code suppression (Edmund Grimley Evans, Michael Matz, grischka)
+- implement round/fmin/fmax etc. math on windows (Avi Halachmi)
+- #pragma once support (Sergey Korshunoff, Vlad Vissoultchev, ...)
+- switch/case code improved (Zdenek Pavlas)
+- ~15% faster by TinyAlloc fast memory allocator (Vlad Vissoultchev)
+- standard conforming (and GCC compatible) struct initialization
+   (Michael Matz)
+- bit-field layout made compatible with GCC (Michael Matz)
+- UTF8 in string literals supported (Zdenek Pavlas)
+_ _Generic(...) supported (Matthias Gatto)
+
+Licensing:
+- TinyCC partly relicensed to MIT license (See RELICENSING file).
+
 version 0.9.26:
 
 User interface:
@@ -10,7 +53,7 @@ User interface:
 Platforms:
 - Many improvements for x86-64 target (Shinichiro Hamaji, Michael Matz, grischka)
 - x86-64 assembler (Frederic Feret)
-- Many improvements for ARM target (Daniel Glöckner, Thomas Preud'homme)
+- Many improvements for ARM target (Daniel GlÃ¶ckner, Thomas Preud'homme)
 - Support WinCE PE ARM (Timo VJ Lahde)
 - Support ARM hardfloat calling convention (Thomas Preud'homme)
 - Support SELinux (Security-Enhanced Linux) (Henry Kroll III)
@@ -29,7 +72,7 @@ Features:
 version 0.9.25:
 
 - first support for x86-64 target (Shinichiro Hamaji)
-- support µClibc
+- support ÂµClibc
 - split tcc.c into tcc.h libtcc.c tccpp.c tccgen.c tcc.c
 - improved preprocess output with linenumbers and spaces preserved
 - tcc_relocate now copies code into user buffer

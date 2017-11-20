@@ -110,7 +110,7 @@ extern "C" {
   typedef DWORD *PDWORD;
   typedef DWORD *LPDWORD;
   typedef void *LPVOID;
-  #ifndef _LPCVOID_DEFINED
+# ifndef _LPCVOID_DEFINED
 #define _LPCVOID_DEFINED
 typedef CONST void *LPCVOID;
 #endif
@@ -122,7 +122,7 @@ typedef CONST void *LPCVOID;
 #include <winnt.h>
 #endif
 
-#include <specstrings.h>
+//gr #include <specstrings.h>
 
   typedef UINT_PTR WPARAM;
   typedef LONG_PTR LPARAM;

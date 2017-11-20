@@ -1,7 +1,7 @@
 /*
  * TCC auto test program
  */
-#include "../config.h"
+#include "config.h"
 
 #if GCC_MAJOR >= 3
 
@@ -16,6 +16,23 @@
 
 #endif
 
+#if defined(_WIN32)
+#define LONG_LONG_FORMAT "%lld"
+#define ULONG_LONG_FORMAT "%llu"
+#else
+#define LONG_LONG_FORMAT "%Ld"
+#define ULONG_LONG_FORMAT "%Lu"
+#endif
+
+// MinGW has 80-bit rather than 64-bit long double which isn't compatible with TCC or MSVC
+#if defined(_WIN32) && defined(__GNUC__)
+#define LONG_DOUBLE double
+#define LONG_DOUBLE_LITERAL(x) x
+#else
+#define LONG_DOUBLE long double
+#define LONG_DOUBLE_LITERAL(x) x ## L
+#endif
+
 /* deprecated and no longer supported in gcc 3.3 */
 //#define ACCEPT_CR_IN_STRINGS
 
@@ -27,7 +44,7 @@
 #define TCCLIB_INC <tcclib.h>
 #define TCCLIB_INC1 <tcclib
 #define TCCLIB_INC2 h>
-#define TCCLIB_INC3 "tcclib"
+#define TCCLIB_INC3 "tcclib.h"
 
 #include TCCLIB_INC
 
@@ -35,13 +52,26 @@
 
 #include TCCLIB_INC1.h>
 
-/* gcc 3.2 does not accept that (bug ?) */
-//#include TCCLIB_INC3 ".h"
+#include TCCLIB_INC3
 
 #include <tcclib.h>
 
 #include "tcclib.h"
 
+#include "tcctest.h"
+
+/* Test two more ways to include a file named like a pp-number */
+#define INC(name) <tests/name.h>
+#define funnyname 42test.h
+#define incdir tests/
+#define incname < incdir funnyname >
+#define __stringify(x) #x
+#define stringify(x) __stringify(x)
+#include INC(42test)
+#include incname
+#include stringify(funnyname)
+
+void intdiv_test();
 void string_test();
 void expr_test();
 void macro_test();
@@ -58,6 +88,7 @@ void struct_test();
 void array_test();
 void expr_ptr_test();
 void bool_test();
+void optimize_out();
 void expr2_test();
 void constant_expr_test();
 void expr_cmp_test();
@@ -90,11 +121,19 @@ void cmp_comparison_test(void);
 void math_cmp_test(void);
 void callsave_test(void);
 void builtin_frame_address_test(void);
+void attrib_test(void);
 
 int fib(int n);
 void num(int n);
 void forward_ref(void);
 int isid(int c);
+
+/* Line joining happens before tokenization, so the following
+   must be parsed as ellipsis.  */
+void funny_line_continuation (int, ..\
+. );
+
+char via_volatile (char);
 
 #define A 2
 #define N 1234 + A
@@ -137,6 +176,11 @@ static int onetwothree = 123;
 #define B3 4
 #endif
 
+#ifdef __TINYC__
+/* We try to handle this syntax.  Make at least sure it doesn't segfault.  */
+char invalid_function_def()[] {}
+#endif
+
 #define __INT64_C(c)	c ## LL
 #define INT64_MIN	(-__INT64_C(9223372036854775807)-1)
 
@@ -149,6 +193,71 @@ int qq(int x)
 #define spin_lock(lock) do { } while (0)
 #define wq_spin_lock spin_lock
 #define TEST2() wq_spin_lock(a)
+
+#define UINT_MAX ((unsigned) -1)
+
+void intdiv_test(void)
+{
+    printf("18/21=%u\n", 18/21);
+    printf("18%%21=%u\n", 18%21);
+    printf("41/21=%u\n", 41/21);
+    printf("41%%21=%u\n", 41%21);
+    printf("42/21=%u\n", 42/21);
+    printf("42%%21=%u\n", 42%21);
+    printf("43/21=%u\n", 43/21);
+    printf("43%%21=%u\n", 43%21);
+    printf("126/21=%u\n", 126/21);
+    printf("126%%21=%u\n", 126%21);
+    printf("131/21=%u\n", 131/21);
+    printf("131%%21=%u\n", 131%21);
+    printf("(UINT_MAX/2+3)/2=%u\n", (UINT_MAX/2+3)/2);
+    printf("(UINT_MAX/2+3)%%2=%u\n", (UINT_MAX/2+3)%2);
+
+    printf("18/-21=%u\n", 18/-21);
+    printf("18%%-21=%u\n", 18%-21);
+    printf("41/-21=%u\n", 41/-21);
+    printf("41%%-21=%u\n", 41%-21);
+    printf("42/-21=%u\n", 42/-21);
+    printf("42%%-21=%u\n", 42%-21);
+    printf("43/-21=%u\n", 43/-21);
+    printf("43%%-21=%u\n", 43%-21);
+    printf("126/-21=%u\n", 126/-21);
+    printf("126%%-21=%u\n", 126%-21);
+    printf("131/-21=%u\n", 131/-21);
+    printf("131%%-21=%u\n", 131%-21);
+    printf("(UINT_MAX/2+3)/-2=%u\n", (UINT_MAX/2+3)/-2);
+    printf("(UINT_MAX/2+3)%%-2=%u\n", (UINT_MAX/2+3)%-2);
+
+    printf("-18/21=%u\n", -18/21);
+    printf("-18%%21=%u\n", -18%21);
+    printf("-41/21=%u\n", -41/21);
+    printf("-41%%21=%u\n", -41%21);
+    printf("-42/21=%u\n", -42/21);
+    printf("-42%%21=%u\n", -42%21);
+    printf("-43/21=%u\n", -43/21);
+    printf("-43%%21=%u\n", -43%21);
+    printf("-126/21=%u\n", -126/21);
+    printf("-126%%21=%u\n", -126%21);
+    printf("-131/21=%u\n", -131/21);
+    printf("-131%%21=%u\n", -131%21);
+    printf("-(UINT_MAX/2+3)/2=%u\n", (0-(UINT_MAX/2+3))/2);
+    printf("-(UINT_MAX/2+3)%%2=%u\n", (0-(UINT_MAX/2+3))%2);
+
+    printf("-18/-21=%u\n", -18/-21);
+    printf("-18%%-21=%u\n", -18%-21);
+    printf("-41/-21=%u\n", -41/-21);
+    printf("-41%%-21=%u\n", -41%-21);
+    printf("-42/-21=%u\n", -42/-21);
+    printf("-42%%-21=%u\n", -42%-21);
+    printf("-43/-21=%u\n", -43/-21);
+    printf("-43%%-21=%u\n", -43%-21);
+    printf("-126/-21=%u\n", -126/-21);
+    printf("-126%%-21=%u\n", -126%-21);
+    printf("-131/-21=%u\n", -131/-21);
+    printf("-131%%-21=%u\n", -131%-21);
+    printf("-(UINT_MAX/2+3)/-2=%u\n", (0-(UINT_MAX/2+3))/-2);
+    printf("-(UINT_MAX/2+3)%%-2=%u\n", (0-(UINT_MAX/2+3))%-2);
+}
 
 void macro_test(void)
 {
@@ -233,6 +342,7 @@ void macro_test(void)
 
     printf("__LINE__=%d __FILE__=%s\n",
            __LINE__, __FILE__);
+#if 0
 #line 200
     printf("__LINE__=%d __FILE__=%s\n",
            __LINE__, __FILE__);
@@ -240,6 +350,7 @@ void macro_test(void)
     printf("__LINE__=%d __FILE__=%s\n",
            __LINE__, __FILE__);
 #line 227 "tcctest.c"
+#endif
 
     /* not strictly preprocessor, but we test it there */
 #ifdef C99_MACROS
@@ -254,7 +365,7 @@ void macro_test(void)
     printf("func='%s'\n", __FUNCTION__);
 
     /* complicated macros in glibc */
-    printf("INT64_MIN=%Ld\n", INT64_MIN);
+    printf("INT64_MIN=" LONG_LONG_FORMAT "\n", INT64_MIN);
     {
         int a;
         a = 1;
@@ -273,7 +384,7 @@ void macro_test(void)
     MF_s("hi");
     MF_t("hi");
     
-    /* test macro substituion inside args (should not eat stream) */
+    /* test macro substitution inside args (should not eat stream) */
     printf("qq=%d\n", qq(qq)(2));
 
     /* test zero argument case. NOTE: gcc 2.95.x does not accept a
@@ -293,9 +404,19 @@ comment
        substituted */
     TEST2();
 
-    /* And again when the name and parenthes are separated by a
+    /* And again when the name and parentheses are separated by a
        comment.  */
     TEST2 /* the comment */ ();
+
+    printf("%s\n", get_basefile_from_header());
+    printf("%s\n", __BASE_FILE__);
+    printf("%s\n", get_file_from_header());
+    printf("%s\n", __FILE__);
+
+    /* Check that funnily named include was in fact included */
+    have_included_42test_h = 1;
+    have_included_42test_h_second = 1;
+    have_included_42test_h_third = 1;
 }
 
 
@@ -487,13 +608,48 @@ enum test {
     E5 = 1000,
 };
 
+struct S_enum {
+    enum {E6 = 42, E7, E8} e:8;
+};
+
+enum ELong {
+    /* This is either 0 on L32 machines, or a large number
+       on L64 machines.  We should be able to store this.  */
+    EL_large = ((unsigned long)0xf000 << 31) << 1,
+};
+
+enum { BIASU = -1U<<31 };
+enum { BIASS = -1 << 31 };
+
+static int getint(int i)
+{
+  if (i)
+    return 0;
+  else
+    return (int)(-1U << 31);
+}
+
 void enum_test()
 {
     enum test b1;
+    /* The following should give no warning */
+    unsigned *p = &b1;
+    struct S_enum s = {E7};
+    printf("enum: %d\n", s.e);
     printf("enum:\n%d %d %d %d %d %d\n",
            E0, E1, E2, E3, E4, E5);
     b1 = 1;
     printf("b1=%d\n", b1);
+    printf("enum large: %ld\n", EL_large);
+
+    if (getint(0) == BIASU)
+      printf("enum unsigned: ok\n");
+    else
+      printf("enum unsigned: wrong\n");
+    if (getint(0) == BIASS)
+      printf("enum unsigned: ok\n");
+    else
+      printf("enum unsigned: wrong\n");
 }
 
 typedef int *my_ptr;
@@ -550,6 +706,11 @@ union union2 {
 
 struct struct1 st1, st2;
 
+struct empty_mem {
+    /* nothing */ ;
+    int x;
+};
+
 int main(int argc, char **argv)
 {
     string_test();
@@ -568,6 +729,7 @@ int main(int argc, char **argv)
     array_test();
     expr_ptr_test();
     bool_test();
+    optimize_out();
     expr2_test();
     constant_expr_test();
     expr_cmp_test();
@@ -602,6 +764,10 @@ int main(int argc, char **argv)
     math_cmp_test();
     callsave_test();
     builtin_frame_address_test();
+    intdiv_test();
+    if (via_volatile (42) != 42)
+      printf ("via_volatile broken\n");
+    attrib_test();
     return 0; 
 }
 
@@ -813,6 +979,12 @@ void expr_ptr_test()
         j = -1;
         printf("%d\n", sp[j].i);
     }
+#ifdef __LP64__
+    i = 1;
+    p = (int*)0x100000000UL + i;
+    i = ((long)p) >> 32;
+    printf("largeptr: %p %d\n", p, i);
+#endif
 }
 
 void expr_cmp_test()
@@ -859,10 +1031,84 @@ struct aligntest4 {
     double a[0];
 };
 
+struct __attribute__((aligned(16))) aligntest5
+{
+    int i;
+};
+struct aligntest6
+{
+    int i;
+} __attribute__((aligned(16)));
+struct aligntest7
+{
+    int i;
+};
+struct aligntest5 altest5[2];
+struct aligntest6 altest6[2];
+int pad1;
+/* altest7 is correctly aligned to 16 bytes also with TCC,
+   but __alignof__ returns the wrong result (4) because we
+   can't store the alignment yet when specified on symbols
+   directly (it's stored in the type so we'd need to make
+   a copy of it). -- FIXED */
+struct aligntest7 altest7[2] __attribute__((aligned(16)));
+
+struct aligntest8
+{
+  int i;
+} __attribute__((aligned(4096)));
+
+struct Large {
+    unsigned long flags;
+    union {
+	void *u1;
+	int *u2;
+    };
+
+    struct {
+	union {
+	    unsigned long index;
+	    void *freelist;
+	};
+	union {
+	    unsigned long counters;
+	    struct {
+		int bla;
+	    };
+	};
+    };
+
+    union {
+	struct {
+	    long u3;
+	    long u4;
+	};
+	void *u5;
+	struct {
+	    unsigned long compound_head;
+	    unsigned int compound_dtor;
+	    unsigned int compound_order;
+	};
+    };
+} __attribute__((aligned(2 * sizeof(long))));
+
+typedef unsigned long long __attribute__((aligned(4))) unaligned_u64;
+
+struct aligntest9 {
+    unsigned int buf_nr;
+    unaligned_u64 start_lba;
+};
+
+struct aligntest10 {
+    unsigned int buf_nr;
+    unsigned long long start_lba;
+};
+
 void struct_test()
 {
     struct1 *s;
     union union2 u;
+    struct Large ls;
 
     printf("struct:\n");
     printf("sizes: %d %d %d %d\n",
@@ -870,6 +1116,7 @@ void struct_test()
            sizeof(struct struct2),
            sizeof(union union1),
            sizeof(union union2));
+    printf("offsets: %d\n", (int)((char*)&st1.u.v1 - (char*)&st1));
     st1.f1 = 1;
     st1.f2 = 2;
     st1.f3 = 3;
@@ -898,10 +1145,33 @@ void struct_test()
            sizeof(struct aligntest3), __alignof__(struct aligntest3));
     printf("aligntest4 sizeof=%d alignof=%d\n",
            sizeof(struct aligntest4), __alignof__(struct aligntest4));
+    printf("aligntest5 sizeof=%d alignof=%d\n",
+           sizeof(struct aligntest5), __alignof__(struct aligntest5));
+    printf("aligntest6 sizeof=%d alignof=%d\n",
+           sizeof(struct aligntest6), __alignof__(struct aligntest6));
+    printf("aligntest7 sizeof=%d alignof=%d\n",
+           sizeof(struct aligntest7), __alignof__(struct aligntest7));
+    printf("aligntest8 sizeof=%d alignof=%d\n",
+           sizeof(struct aligntest8), __alignof__(struct aligntest8));
+    printf("aligntest9 sizeof=%d alignof=%d\n",
+           sizeof(struct aligntest9), __alignof__(struct aligntest9));
+    printf("aligntest10 sizeof=%d alignof=%d\n",
+           sizeof(struct aligntest10), __alignof__(struct aligntest10));
+    printf("altest5 sizeof=%d alignof=%d\n",
+           sizeof(altest5), __alignof__(altest5));
+    printf("altest6 sizeof=%d alignof=%d\n",
+           sizeof(altest6), __alignof__(altest6));
+    printf("altest7 sizeof=%d alignof=%d\n",
+           sizeof(altest7), __alignof__(altest7));
            
     /* empty structures (GCC extension) */
     printf("sizeof(struct empty) = %d\n", sizeof(struct empty));
     printf("alignof(struct empty) = %d\n", __alignof__(struct empty));
+
+    printf("Large: sizeof=%d\n", sizeof(ls));
+    memset(&ls, 0, sizeof(ls));
+    ls.compound_head = 42;
+    printf("Large: offsetof(compound_head)=%d\n", (int)((char*)&ls.compound_head - (char*)&ls));
 }
 
 /* XXX: depend on endianness */
@@ -949,6 +1219,14 @@ typedef struct Sym {
 static int toupper1(int a)
 {
     return TOUPPER(a);
+}
+
+static unsigned int calc_vm_flags(unsigned int prot)
+{
+  unsigned int prot_bits;
+  /* This used to segfault in some revisions: */
+  prot_bits = ((0x1==0x00000001)?(prot&0x1):(prot&0x1)?0x00000001:0);
+  return prot_bits;
 }
 
 void bool_test()
@@ -1023,6 +1301,132 @@ void bool_test()
         if (toupper1 (i) != TOUPPER (i))
             printf("error %d\n", i);
     }
+    printf ("bits = 0x%x\n", calc_vm_flags (0x1));
+}
+
+extern int undefined_function(void);
+extern int defined_function(void);
+
+static inline void refer_to_undefined(void)
+{
+  undefined_function();
+}
+
+void optimize_out(void)
+{
+  int i = 0 ? undefined_function() : defined_function();
+  printf ("oo:%d\n", i);
+  int j = 1 ? defined_function() : undefined_function();
+  printf ("oo:%d\n", j);
+  if (0)
+    printf("oo:%d\n", undefined_function());
+  else
+    printf("oo:%d\n", defined_function());
+  if (1)
+    printf("oo:%d\n", defined_function());
+  else
+    printf("oo:%d\n", undefined_function());
+  while (1) {
+      printf("oow:%d\n", defined_function());
+      break;
+      printf("oow:%d\n", undefined_function());
+  }
+  j = 1;
+  /* Following is a switch without {} block intentionally.  */
+  switch (j)
+    case 1: break;
+  printf ("oos:%d\n", defined_function());
+  /* The following break shouldn't lead to disabled code after
+     the while.  */
+  while (1)
+    break;
+  printf ("ool1:%d\n", defined_function());
+  /* Same for the other types of loops.  */
+  do
+    break;
+  while (1);
+  printf ("ool2:%d\n", defined_function());
+  for (;;)
+    break;
+  printf ("ool3:%d\n", defined_function());
+  /* Normal {} blocks without controlling statements
+     shouldn't reactivate code emission */
+  while (1) {
+	{
+	  break;
+	}
+      printf ("ool4:%d\n", undefined_function());
+  }
+  j = 1;
+  while (j) {
+      if (j == 0)
+	break; /* this break shouldn't disable code outside the if. */
+      printf("ool5:%d\n", defined_function());
+      j--;
+  }
+
+  j = 1;
+  while (j) {
+      if (1)
+	j--;
+      else
+	breakhere: break;
+      printf("ool6:%d\n", defined_function());
+      goto breakhere;
+  }
+
+  /* Test that constants in logical && are optimized: */
+  i = 0 && undefined_function();
+  i = defined_function() && 0 && undefined_function();
+  if (0 && undefined_function())
+    undefined_function();
+  if (defined_function() && 0)
+    undefined_function();
+  if (0 && 0)
+    undefined_function();
+  if (defined_function() && 0 && undefined_function())
+    undefined_function();
+  /* The same for || : */
+  i = 1 || undefined_function();
+  i = defined_function() || 1 || undefined_function();
+  if (1 || undefined_function())
+    ;
+  else
+    undefined_function();
+  if (defined_function() || 1)
+    ;
+  else
+    undefined_function();
+  if (1 || 1)
+    ;
+  else
+    undefined_function();
+  if (defined_function() || 1 || undefined_function())
+    ;
+  else
+    undefined_function();
+
+  if (defined_function() && 0)
+    refer_to_undefined();
+
+  if (0) {
+      (void)sizeof( ({
+		     do { } while (0);
+		     0;
+		     }) );
+      undefined_function();
+  }
+
+  /* Leave the "if(1)return; printf()" in this order and last in the function */
+  if (1)
+    return;
+  printf ("oor:%d\n", undefined_function());
+}
+
+int defined_function(void)
+{
+  static int i = 40;
+  return i++;
 }
 
 /* GCC accepts that */
@@ -1337,6 +1741,19 @@ struct complexinit2 cix22 = {
 	.b = { 4001, 4002, 4003, 4004, 4005, 4006 }
 };
 
+typedef int arrtype1[];
+arrtype1 sinit19 = {1};
+arrtype1 sinit20 = {2,3};
+typedef int arrtype2[3];
+arrtype2 sinit21 = {4};
+arrtype2 sinit22 = {5,6,7};
+
+/* Address comparisons of non-weak symbols with zero can be const-folded */
+int sinit23[2] = { "astring" ? sizeof("astring") : -1,
+		   &sinit23 ? 42 : -1 };
+
+extern int external_inited = 42;
+
 void init_test(void)
 {
     int linit1 = 2;
@@ -1351,6 +1768,9 @@ void init_test(void)
     int linit15[10] = { linit1, linit1 + 1, [6] = linit1 + 2, };
     struct linit16 { int a1, a2, a3, a4; } linit16 = { 1, .a3 = 2 };
     int linit17 = sizeof(linit17);
+    int zero = 0;
+    /* Addresses on non-weak symbols are non-zero, but not the access itself */
+    int linit18[2] = {&zero ? 1 : -1, zero ? -1 : 1 };
     
     printf("init_test:\n");
 
@@ -1437,12 +1857,57 @@ void init_test(void)
 	cix[0].b[2].a, cix[0].b[2].b);
     printf("cix2: %d %d\n", cix21.b[2], cix22.b[5]);
     printf("sizeof cix20 %d, cix21 %d, sizeof cix22 %d\n", sizeof cix20, sizeof cix21, sizeof cix22);
+
+    printf("arrtype1: %d %d %d\n", sinit19[0], sinit20[0], sinit20[1]);
+    printf("arrtype2: %d %d\n", sizeof(sinit19), sizeof(sinit20));
+    printf("arrtype3: %d %d %d\n", sinit21[0], sinit21[1], sinit21[2]);
+    printf("arrtype4: %d %d %d\n", sinit22[0], sinit22[1], sinit22[2]);
+    printf("arrtype5: %d %d\n", sizeof(sinit21), sizeof(sinit22));
+    printf("arrtype6: %d\n", sizeof(arrtype2));
+
+    printf("sinit23= %d %d\n", sinit23[0], sinit23[1]);
+    printf("linit18= %d %d\n", linit18[0], linit18[1]);
 }
 
+void switch_uc(unsigned char uc)
+{
+	switch (uc) {
+	    case 0xfb ... 0xfe:
+		printf("ucsw:1\n");
+		break;
+	    case 0xff:
+		printf("ucsw:2\n");
+		break;
+	    case 0 ... 5:
+		printf("ucsw:3\n");
+		break;
+	    default:
+		printf("ucsw: broken!\n");
+	}
+}
+
+void switch_sc(signed char sc)
+{
+	switch (sc) {
+	    case -5 ... -2:
+		printf("scsw:1\n");
+		break;
+	    case -1:
+		printf("scsw:2\n");
+		break;
+	    case 0 ... 5:
+		printf("scsw:3\n");
+		break;
+	    default:
+		printf("scsw: broken!\n");
+	}
+}
 
 void switch_test()
 {
     int i;
+    unsigned long long ull;
+    long long ll;
 
     for(i=0;i<15;i++) {
         switch(i) {
@@ -1459,9 +1924,66 @@ void switch_test()
         case 3:
             printf("b");
             break;
+        case 0xc33c6b9fU:
+        case 0x7c9eeeb9U:
+            break;
         }
     }
     printf("\n");
+
+    for (i = 1; i <= 5; i++) {
+	ull = (unsigned long long)i << 61;
+	switch (ull) {
+	    case 1ULL << 61:
+		printf("ullsw:1\n");
+		break;
+	    case 2ULL << 61:
+		printf("ullsw:2\n");
+		break;
+	    case 3ULL << 61:
+		printf("ullsw:3\n");
+		break;
+	    case 4ULL << 61:
+		printf("ullsw:4\n");
+		break;
+	    case 5ULL << 61:
+		printf("ullsw:5\n");
+		break;
+	    default:
+		printf("ullsw: broken!\n");
+	}
+    }
+
+    for (i = 1; i <= 5; i++) {
+	ll = (long long)i << 61;
+	switch (ll) {
+	    case 1LL << 61:
+		printf("llsw:1\n");
+		break;
+	    case 2LL << 61:
+		printf("llsw:2\n");
+		break;
+	    case 3LL << 61:
+		printf("llsw:3\n");
+		break;
+	    case 4LL << 61:
+		printf("llsw:4\n");
+		break;
+	    case 5LL << 61:
+		printf("llsw:5\n");
+		break;
+	    default:
+		printf("llsw: broken!\n");
+	}
+    }
+
+    for (i = -5; i <= 5; i++) {
+	switch_uc((unsigned char)i);
+    }
+
+    for (i = -5; i <= 5; i++) {
+	switch_sc ((signed char)i);
+    }
 }
 
 /* ISOC99 _Bool type */
@@ -1522,8 +2044,6 @@ void bitfield_test(void)
     else 
         printf("st1.f2 != -1\n");
 
-    /* bit sizes below must be bigger than 32 since GCC doesn't allow
-       long-long bitfields whose size is not bigger than int */
     struct sbf2 {
         long long f1 : 45;
         long long : 2;
@@ -1536,6 +2056,39 @@ void bitfield_test(void)
     st2.f3 = a;
     st2.f2++;
     printf("%lld %lld %lld\n", st2.f1, st2.f2, st2.f3);
+
+#if 0
+    Disabled for now until further clarification re GCC compatibility
+    struct sbf3 {
+        int f1 : 7;
+        int f2 : 1;
+        char f3;
+        int f4 : 8;
+        int f5 : 1;
+        int f6 : 16;
+    } st3;
+    printf("sizeof(st3) = %d\n", sizeof(st3));
+#endif
+
+    struct sbf4 {
+	int x : 31;
+	char y : 2;
+    } st4;
+    st4.y = 1;
+    printf("st4.y == %d\n", st4.y);
+    struct sbf5 {
+	int a;
+	char b;
+	int x : 12, y : 4, : 0, : 4, z : 3;
+	char c;
+    } st5 = { 1, 2, 3, 4, -3, 6 };
+    printf("st5 = %d %d %d %d %d %d\n", st5.a, st5.b, st5.x, st5.y, st5.z, st5.c);
+    struct sbf6 {
+	short x : 12;
+	unsigned char y : 2;
+    } st6;
+    st6.y = 1;
+    printf("st6.y == %d\n", st6.y);
 }
 
 #ifdef __x86_64__
@@ -1547,10 +2100,16 @@ void bitfield_test(void)
 
 /* declare strto* functions as they are C99 */
 double strtod(const char *nptr, char **endptr);
-float strtof(const char *nptr, char **endptr);
-long double strtold(const char *nptr, char **endptr);
 
-#define FTEST(prefix, type, fmt)\
+#if defined(_WIN32)
+float strtof(const char *nptr, char **endptr) {return (float)strtod(nptr, endptr);}
+LONG_DOUBLE strtold(const char *nptr, char **endptr) {return (LONG_DOUBLE)strtod(nptr, endptr);}
+#else
+float strtof(const char *nptr, char **endptr);
+LONG_DOUBLE strtold(const char *nptr, char **endptr);
+#endif
+
+#define FTEST(prefix, typename, type, fmt)\
 void prefix ## cmp(type a, type b)\
 {\
     printf("%d %d %d %d %d %d\n",\
@@ -1578,28 +2137,39 @@ void prefix ## fcast(type a)\
 {\
     float fa;\
     double da;\
-    long double la;\
+    LONG_DOUBLE la;\
     int ia;\
+    long long llia;\
     unsigned int ua;\
+    unsigned long long llua;\
     type b;\
     fa = a;\
     da = a;\
     la = a;\
     printf("ftof: %f %f %Lf\n", fa, da, la);\
     ia = (int)a;\
+    llia = (long long)a;\
+    a = (a >= 0) ? a : -a;\
     ua = (unsigned int)a;\
-    printf("ftoi: %d %u\n", ia, ua);\
+    llua = (unsigned long long)a;\
+    printf("ftoi: %d %u %lld %llu\n", ia, ua, llia, llua);\
     ia = -1234;\
     ua = 0x81234500;\
+    llia = -0x123456789012345LL;\
+    llua = 0xf123456789012345LLU;\
     b = ia;\
     printf("itof: " fmt "\n", b);\
     b = ua;\
     printf("utof: " fmt "\n", b);\
+    b = llia;\
+    printf("lltof: " fmt "\n", b);\
+    b = llua;\
+    printf("ulltof: " fmt "\n", b);\
 }\
 \
 float prefix ## retf(type a) { return a; }\
 double prefix ## retd(type a) { return a; }\
-long double prefix ## retld(type a) { return a; }\
+LONG_DOUBLE prefix ## retld(type a) { return a; }\
 \
 void prefix ## call(void)\
 {\
@@ -1609,26 +2179,57 @@ void prefix ## call(void)\
     printf("strto%s: %f\n", #prefix, (double)strto ## prefix("1.2", NULL));\
 }\
 \
+void prefix ## signed_zeros(void) \
+{\
+  type x = 0.0, y = -0.0, n, p;\
+  if (x == y)\
+    printf ("Test 1.0 / x != 1.0 / y  returns %d (should be 1).\n",\
+            1.0 / x != 1.0 / y);\
+  else\
+    printf ("x != y; this is wrong!\n");\
+\
+  n = -x;\
+  if (x == n)\
+    printf ("Test 1.0 / x != 1.0 / -x returns %d (should be 1).\n",\
+            1.0 / x != 1.0 / n);\
+  else\
+    printf ("x != -x; this is wrong!\n");\
+\
+  p = +y;\
+  if (x == p)\
+    printf ("Test 1.0 / x != 1.0 / +y returns %d (should be 1).\n",\
+            1.0 / x != 1.0 / p);\
+  else\
+    printf ("x != +y; this is wrong!\n");\
+  p = -y;\
+  if (x == p)\
+    printf ("Test 1.0 / x != 1.0 / -y returns %d (should be 0).\n",\
+            1.0 / x != 1.0 / p);\
+  else\
+    printf ("x != -y; this is wrong!\n");\
+}\
 void prefix ## test(void)\
 {\
-    printf("testing '%s'\n", #type);\
+    printf("testing '%s'\n", #typename);\
     prefix ## cmp(1, 2.5);\
     prefix ## cmp(2, 1.5);\
     prefix ## cmp(1, 1);\
     prefix ## fcast(234.6);\
     prefix ## fcast(-2334.6);\
     prefix ## call();\
+    prefix ## signed_zeros();\
 }
 
-FTEST(f, float, "%f")
-FTEST(d, double, "%f")
-FTEST(ld, long double, "%Lf")
+FTEST(f, float, float, "%f")
+FTEST(d, double, double, "%f")
+FTEST(ld, long double, LONG_DOUBLE, "%Lf")
 
 double ftab1[3] = { 1.2, 3.4, -5.6 };
 
 
 void float_test(void)
 {
+#if !defined(__arm__) || defined(__ARM_PCS_VFP)
     float fa, fb;
     double da, db;
     int a;
@@ -1637,7 +2238,7 @@ void float_test(void)
     printf("float_test:\n");
     printf("sizeof(float) = %d\n", sizeof(float));
     printf("sizeof(double) = %d\n", sizeof(double));
-    printf("sizeof(long double) = %d\n", sizeof(long double));
+    printf("sizeof(long double) = %d\n", sizeof(LONG_DOUBLE));
     ftest();
     dtest();
     ldtest();
@@ -1654,6 +2255,7 @@ void float_test(void)
     b = 4000000000;
     db = b;
     printf("db = %f\n", db);
+#endif
 }
 
 int fib(int n)
@@ -1672,6 +2274,7 @@ void funcptr_test()
         int dummy;
         void (*func)(int);
     } st1;
+    long diff;
 
     printf("funcptr:\n");
     func = &num;
@@ -1687,6 +2290,12 @@ void funcptr_test()
     printf("sizeof2 = %d\n", sizeof funcptr_test);
     printf("sizeof3 = %d\n", sizeof(&funcptr_test));
     printf("sizeof4 = %d\n", sizeof &funcptr_test);
+    a = 0;
+    func = num + a;
+    diff = func - num;
+    func(42);
+    (func + diff)(42);
+    (num + a)(43);
 }
 
 void lloptest(long long a, long long b)
@@ -1696,19 +2305,19 @@ void lloptest(long long a, long long b)
     ua = a;
     ub = b;
     /* arith */
-    printf("arith: %Ld %Ld %Ld\n",
+    printf("arith: " LONG_LONG_FORMAT " " LONG_LONG_FORMAT " " LONG_LONG_FORMAT "\n",
            a + b,
            a - b,
            a * b);
     
     if (b != 0) {
-        printf("arith1: %Ld %Ld\n",
+        printf("arith1: " LONG_LONG_FORMAT " " LONG_LONG_FORMAT "\n",
            a / b,
            a % b);
     }
 
     /* binary */
-    printf("bin: %Ld %Ld %Ld\n",
+    printf("bin: " LONG_LONG_FORMAT " " LONG_LONG_FORMAT " " LONG_LONG_FORMAT "\n",
            a & b,
            a | b,
            a ^ b);
@@ -1733,25 +2342,25 @@ void lloptest(long long a, long long b)
     /* arith2 */
     a++;
     b++;
-    printf("arith2: %Ld %Ld\n", a, b);
-    printf("arith2: %Ld %Ld\n", a++, b++);
-    printf("arith2: %Ld %Ld\n", --a, --b);
-    printf("arith2: %Ld %Ld\n", a, b);
+    printf("arith2: " LONG_LONG_FORMAT " " LONG_LONG_FORMAT "\n", a, b);
+    printf("arith2: " LONG_LONG_FORMAT " " LONG_LONG_FORMAT "\n", a++, b++);
+    printf("arith2: " LONG_LONG_FORMAT " " LONG_LONG_FORMAT "\n", --a, --b);
+    printf("arith2: " LONG_LONG_FORMAT " " LONG_LONG_FORMAT "\n", a, b);
     b = ub = 0;
     printf("not: %d %d %d %d\n", !a, !ua, !b, !ub);
 }
 
 void llshift(long long a, int b)
 {
-    printf("shift: %Ld %Ld %Ld\n",
+    printf("shift: " LONG_LONG_FORMAT " " LONG_LONG_FORMAT " " LONG_LONG_FORMAT "\n",
            (unsigned long long)a >> b,
            a >> b,
            a << b);
-    printf("shiftc: %Ld %Ld %Ld\n",
+    printf("shiftc: " LONG_LONG_FORMAT " " LONG_LONG_FORMAT " " LONG_LONG_FORMAT "\n",
            (unsigned long long)a >> 3,
            a >> 3,
            a << 3);
-    printf("shiftc: %Ld %Ld %Ld\n",
+    printf("shiftc: " LONG_LONG_FORMAT " " LONG_LONG_FORMAT " " LONG_LONG_FORMAT "\n",
            (unsigned long long)a >> 35,
            a >> 35,
            a << 35);
@@ -1761,14 +2370,14 @@ void llfloat(void)
 {
     float fa;
     double da;
-    long double lda;
+    LONG_DOUBLE lda;
     long long la, lb, lc;
     unsigned long long ula, ulb, ulc;
     la = 0x12345678;
     ula = 0x72345678;
     la = (la << 20) | 0x12345;
     ula = ula << 33;
-    printf("la=%Ld ula=%Lu\n", la, ula);
+    printf("la=" LONG_LONG_FORMAT " ula=" ULONG_LONG_FORMAT "\n", la, ula);
 
     fa = la;
     da = la;
@@ -1778,7 +2387,7 @@ void llfloat(void)
     la = fa;
     lb = da;
     lc = lda;
-    printf("ftoll: %Ld %Ld %Ld\n", la, lb, lc);
+    printf("ftoll: " LONG_LONG_FORMAT " " LONG_LONG_FORMAT " " LONG_LONG_FORMAT "\n", la, lb, lc);
 
     fa = ula;
     da = ula;
@@ -1788,7 +2397,7 @@ void llfloat(void)
     ula = fa;
     ulb = da;
     ulc = lda;
-    printf("ftoull: %Lu %Lu %Lu\n", ula, ulb, ulc);
+    printf("ftoull: " ULONG_LONG_FORMAT " " ULONG_LONG_FORMAT " " ULONG_LONG_FORMAT "\n", ula, ulb, ulc);
 }
 
 long long llfunc1(int a)
@@ -1806,6 +2415,11 @@ long long int value(struct S *v)
     return ((long long int)v->item);
 }
 
+long long llfunc2(long long x, long long y, int z)
+{
+    return x * y * z;
+}
+
 void longlong_test(void)
 {
     long long a, b, c;
@@ -1817,14 +2431,14 @@ void longlong_test(void)
     ua = -2;
     a = ia;
     b = ua;
-    printf("%Ld %Ld\n", a, b);
-    printf("%Ld %Ld %Ld %Lx\n", 
+    printf(LONG_LONG_FORMAT " " LONG_LONG_FORMAT "\n", a, b);
+    printf(LONG_LONG_FORMAT " " LONG_LONG_FORMAT " " LONG_LONG_FORMAT " %Lx\n", 
            (long long)1, 
            (long long)-2,
            1LL,
            0x1234567812345679);
     a = llfunc1(-3);
-    printf("%Ld\n", a);
+    printf(LONG_LONG_FORMAT "\n", a);
 
     lloptest(1000, 23);
     lloptest(0xff, 0x1234);
@@ -1852,58 +2466,62 @@ void longlong_test(void)
     }
     lloptest(0x80000000, 0);
 
-    /* another long long spill test */
     {
-        long long *p, v;
+        long long *p, v, **pp;
         v = 1;
         p = &v;
         p[0]++;
-        printf("%lld\n", *p);
-    }
+        printf("another long long spill test : %lld\n", *p);
+        pp = &p;
 
+        v = llfunc2(**pp, **pp, ia);
+        printf("a long long function (arm-)reg-args test : %lld\n", v);
+    }
     a = 68719476720LL;
     b = 4294967295LL;
     printf("%d %d %d %d\n", a > b, a < b, a >= b, a <= b);
 
-    printf("%Ld\n", 0x123456789LLU);
+    printf(LONG_LONG_FORMAT "\n", 0x123456789LLU);
+
+    /* long long pointer deref in argument passing test */
+    a = 0x123;
+    long long *p = &a;
+    llshift(*p, 5);
 }
 
 void manyarg_test(void)
 {
-    long double ld = 1234567891234LL;
+    LONG_DOUBLE ld = 1234567891234LL;
     printf("manyarg_test:\n");
     printf("%d %d %d %d %d %d %d %d %f %f %f %f %f %f %f %f %f %f\n",
            1, 2, 3, 4, 5, 6, 7, 8,
            0.1, 1.2, 2.3, 3.4, 4.5, 5.6, 6.7, 7.8, 8.9, 9.0);
     printf("%d %d %d %d %d %d %d %d %f %f %f %f %f %f %f %f %f %f "
-           "%Ld %Ld %f %f\n",
+           LONG_LONG_FORMAT " " LONG_LONG_FORMAT " %f %f\n",
            1, 2, 3, 4, 5, 6, 7, 8,
            0.1, 1.2, 2.3, 3.4, 4.5, 5.6, 6.7, 7.8, 8.9, 9.0,
            1234567891234LL, 987654321986LL,
            42.0, 43.0);
     printf("%Lf %d %d %d %d %d %d %d %d %f %f %f %f %f %f %f %f %f %f "
-           "%Ld %Ld %f %f\n",
+           LONG_LONG_FORMAT " " LONG_LONG_FORMAT " %f %f\n",
            ld, 1, 2, 3, 4, 5, 6, 7, 8,
            0.1, 1.2, 2.3, 3.4, 4.5, 5.6, 6.7, 7.8, 8.9, 9.0,
            1234567891234LL, 987654321986LL,
            42.0, 43.0);
-    /* XXX: known bug of x86-64 */
-#ifndef __x86_64__
     printf("%d %d %d %d %d %d %d %d %Lf\n",
            1, 2, 3, 4, 5, 6, 7, 8, ld);
     printf("%d %d %d %d %d %d %d %d %f %f %f %f %f %f %f %f %f %f "
-           "%Ld %Ld %f %f %Lf\n",
+           LONG_LONG_FORMAT " " LONG_LONG_FORMAT "%f %f %Lf\n",
            1, 2, 3, 4, 5, 6, 7, 8,
            0.1, 1.2, 2.3, 3.4, 4.5, 5.6, 6.7, 7.8, 8.9, 9.0,
            1234567891234LL, 987654321986LL,
            42.0, 43.0, ld);
     printf("%d %d %d %d %d %d %d %d %f %f %f %f %f %f %f %f %f %f "
-           "%Lf %Ld %Ld %f %f %Lf\n",
+           "%Lf " LONG_LONG_FORMAT " " LONG_LONG_FORMAT " %f %f %Lf\n",
            1, 2, 3, 4, 5, 6, 7, 8,
            0.1, 1.2, 2.3, 3.4, 4.5, 5.6, 6.7, 7.8, 8.9, 9.0,
            ld, 1234567891234LL, 987654321986LL,
            42.0, 43.0, ld);
-#endif
 }
 
 void vprintf1(const char *fmt, ...)
@@ -1913,7 +2531,7 @@ void vprintf1(const char *fmt, ...)
     int c, i;
     double d;
     long long ll;
-    long double ld;
+    LONG_DOUBLE ld;
 
     va_start(aq, fmt);
     va_copy(ap, aq);
@@ -1939,10 +2557,10 @@ void vprintf1(const char *fmt, ...)
                 break;
             case 'l':
                 ll = va_arg(ap, long long);
-                printf("%Ld", ll);
+                printf(LONG_LONG_FORMAT, ll);
                 break;
             case 'F':
-                ld = va_arg(ap, long double);
+                ld = va_arg(ap, LONG_DOUBLE);
                 printf("%Lf", ld);
                 break;
             }
@@ -1975,20 +2593,25 @@ void stdarg_for_struct(struct myspace bob, ...)
     va_end(ap);
 }
 
+void stdarg_for_libc(const char *fmt, ...)
+{
+    va_list args;
+    va_start(args, fmt);
+    vprintf(fmt, args);
+    va_end(args);
+}
+
 void stdarg_test(void)
 {
-    long double ld = 1234567891234LL;
+    LONG_DOUBLE ld = 1234567891234LL;
     struct myspace bob;
 
     vprintf1("%d %d %d\n", 1, 2, 3);
     vprintf1("%f %d %f\n", 1.0, 2, 3.0);
     vprintf1("%l %l %d %f\n", 1234567891234LL, 987654321986LL, 3, 1234.0);
-    vprintf1("%F %F %F\n", 1.2L, 2.3L, 3.4L);
-#ifdef __x86_64__
-    /* a bug of x86's TCC */
+    vprintf1("%F %F %F\n", LONG_DOUBLE_LITERAL(1.2), LONG_DOUBLE_LITERAL(2.3), LONG_DOUBLE_LITERAL(3.4));
     vprintf1("%d %f %l %F %d %f %l %F\n",
-             1, 1.2, 3L, 4.5L, 6, 7.8, 9L, 0.1L);
-#endif
+             1, 1.2, 3LL, LONG_DOUBLE_LITERAL(4.5), 6, 7.8, 9LL, LONG_DOUBLE_LITERAL(0.1));
     vprintf1("%d %d %d %d %d %d %d %d %f %f %f %f %f %f %f %f\n",
              1, 2, 3, 4, 5, 6, 7, 8,
              0.1, 1.2, 2.3, 3.4, 4.5, 5.6, 6.7, 7.8);
@@ -2024,6 +2647,7 @@ void stdarg_test(void)
 
     bob.profile = 42;
     stdarg_for_struct(bob, bob, bob, bob.profile);
+    stdarg_for_libc("stdarg_for_libc: %s %.2f %d\n", "string", 1.23, 456);
 }
 
 void whitespace_test(void)
@@ -2063,11 +2687,38 @@ int reltab[3] = { 1, 2, 3 };
 int *rel1 = &reltab[1];
 int *rel2 = &reltab[2];
 
+#ifdef _WIN64
+void relocation_test(void) {}
+#else
+void getmyaddress(void)
+{
+    printf("in getmyaddress\n");
+}
+
+#ifdef __LP64__
+long __pa_symbol(void)
+{
+    /* This 64bit constant was handled incorrectly, it was used as addend
+       (which can hold 64bit just fine) in connection with a symbol,
+       and TCC generates wrong code for that (displacements are 32bit only).
+       This effectively is "+ 0x80000000", and if addresses of globals
+       are below 2GB the result should be a number without high 32 bits set.  */
+       return ((long)(((unsigned long)(&rel1))) - (0xffffffff80000000UL));
+}
+#endif
+
+unsigned long theaddress = (unsigned long)getmyaddress;
 void relocation_test(void)
 {
+    void (*fptr)(void) = (void (*)(void))theaddress;
     printf("*rel1=%d\n", *rel1);
     printf("*rel2=%d\n", *rel2);
+    fptr();
+#ifdef __LP64__
+    printf("pa_symbol=0x%lx\n", __pa_symbol() >> 63);
+#endif
 }
+#endif
 
 void old_style_f(a,b,c)
      int a, b;
@@ -2096,7 +2747,7 @@ void old_style_function(void)
 
 void alloca_test()
 {
-#if defined __i386__ || defined __x86_64__
+#if defined __i386__ || defined __x86_64__ || defined __arm__
     char *p = alloca(16);
     strcpy(p,"123456789012345");
     printf("alloca: p is %s\n", p);
@@ -2129,7 +2780,7 @@ void c99_vla_test(int size1, int size2)
     printf("%s\n", (sizeof tab1 == size1 * size2 * 2 * sizeof(int)) ? "PASSED" : "FAILED");
     tab1_ptr = tab1;
     tab2_ptr = tab2;
-    printf("Test C99 VLA 2 (ptrs substract): ");
+    printf("Test C99 VLA 2 (ptrs subtract): ");
     printf("%s\n", (tab2 - tab1 == (tab2_ptr - tab1_ptr) / (sizeof(int) * 2)) ? "PASSED" : "FAILED");
     printf("Test C99 VLA 3 (ptr add): ");
     printf("%s\n", &tab1[5][1] == (tab1_ptr + (5 * 2 + 1) * sizeof(int)) ? "PASSED" : "FAILED");
@@ -2165,7 +2816,9 @@ void c99_vla_test(int size1, int size2)
 #endif
 }
 
+#ifndef __TINYC__
 typedef __SIZE_TYPE__ uintptr_t;
+#endif
 
 void sizeof_test(void)
 {
@@ -2209,6 +2862,23 @@ void sizeof_test(void)
     printf("__alignof__(char) = %d\n", __alignof__(char));
     printf("__alignof__(unsigned char) = %d\n", __alignof__(unsigned char));
     printf("__alignof__(func) = %d\n", __alignof__ sizeof_test());
+
+    /* sizes of VLAs need to be evaluated even inside sizeof: */
+    a = 2;
+    printf("sizeof(char[1+2*a]) = %d\n", sizeof(char[1+2*a]));
+    /* And checking if sizeof compound literal works.  Parenthesized: */
+    printf("sizeof( (struct {int i; int j;}){4,5} ) = %d\n",
+	   sizeof( (struct {int i; int j;}){4,5} ));
+    /* And as direct sizeof argument (as unary expression): */
+    printf("sizeof (struct {short i; short j;}){4,5} = %d\n",
+	   sizeof (struct {short i; short j;}){4,5} );
+
+    /* sizeof(x && y) should be sizeof(int), even if constant
+       evaluating is possible. */
+    printf("sizeof(t && 0) = %d\n", sizeof(t && 0));
+    printf("sizeof(1 && 1) = %d\n", sizeof(1 && 1));
+    printf("sizeof(t || 1) = %d\n", sizeof(t || 1));
+    printf("sizeof(0 || 0) = %d\n", sizeof(0 || 0));
 }
 
 void typeof_test(void)
@@ -2223,10 +2893,22 @@ void typeof_test(void)
     printf("a=%f b=%f c=%f\n", a, b, c);
 }
 
+
+struct hlist_node;
+struct hlist_head {
+    struct hlist_node *first, *last;
+};
+
+void consume_ulong (unsigned long i)
+{
+    i = 0;
+}
+
 void statement_expr_test(void)
 {
     int a, i;
 
+    /* Basic stmt expr test */
     a = 0;
     for(i=0;i<10;i++) {
         a += 1 + 
@@ -2238,6 +2920,48 @@ void statement_expr_test(void)
     }
     printf("a=%d\n", a);
     
+    /* Test that symbols aren't freed prematurely.
+       With SYM_DEBUG valgrind will show a read from a freed
+       symbol, and tcc will show an (invalid) warning on the initialization
+       of 'ptr' below, if symbols are popped after the stmt expr.  */
+    void *v = (void*)39;
+    typeof(({
+	    (struct hlist_node *)v;
+	    })) x;
+    typeof (x)
+	ptr = (struct hlist_node *)v;
+
+    /* This part used to segfault when symbols were popped prematurely.
+       The symbols for the static local would be overwritten with
+       helper symbols from the pre-processor expansions in between.  */
+#define some_attr     __attribute__((aligned(1)))
+#define tps(str) ({                  \
+            static const char *t some_attr = str; \
+            t;                                    \
+          })
+    printf ("stmtexpr: %s %s\n",
+	    tps("somerandomlongstring"),
+	    tps("anotherlongstring"));
+
+    /* Test that the three decls of 't' don't interact.  */
+    int t = 40;
+    int b = ({ int t = 41; t; });
+    int c = ({ int t = 42; t; });
+
+    /* Test that aggregate return values work.  */
+    struct hlist_head h
+	= ({
+	   typedef struct hlist_head T;
+	   long pre = 48;
+	   T t = { (void*)43, (void*)44 };
+	   long post = 49;
+	   t;
+	   });
+    printf ("stmtexpr: %d %d %d\n", t, b, c);
+    printf ("stmtexpr: %ld %ld\n", (long)h.first, (long)h.last);
+
+    /* Test that we can give out addresses of local labels.  */
+    consume_ulong(({ __label__ __here; __here: (unsigned long)&&__here; }));
 }
 
 void local_label_test(void)
@@ -2271,24 +2995,24 @@ void local_label_test(void)
 }
 
 /* inline assembler test */
-#ifdef __i386__
+#if defined(__i386__) || defined(__x86_64__)
 
 /* from linux kernel */
 static char * strncat1(char * dest,const char * src,size_t count)
 {
-int d0, d1, d2, d3;
+long d0, d1, d2, d3;
 __asm__ __volatile__(
 	"repne\n\t"
 	"scasb\n\t"
-	"decl %1\n\t"
-	"movl %8,%3\n"
-	"1:\tdecl %3\n\t"
+	"dec %1\n\t"
+	"mov %8,%3\n"
+	"1:\tdec %3\n\t"
 	"js 2f\n\t"
 	"lodsb\n\t"
 	"stosb\n\t"
 	"testb %%al,%%al\n\t"
 	"jne 1b\n"
-	"2:\txorl %2,%2\n\t"
+	"2:\txor %2,%2\n\t"
 	"stosb"
 	: "=&S" (d0), "=&D" (d1), "=&a" (d2), "=&c" (d3)
 	: "0" (src),"1" (dest),"2" (0),"3" (0xffffffff), "g" (count)
@@ -2298,18 +3022,18 @@ return dest;
 
 static char * strncat2(char * dest,const char * src,size_t count)
 {
-int d0, d1, d2, d3;
+long d0, d1, d2, d3;
 __asm__ __volatile__(
 	"repne scasb\n\t" /* one-line repne prefix + string op */
-	"decl %1\n\t"
-	"movl %8,%3\n"
-	"1:\tdecl %3\n\t"
+	"dec %1\n\t"
+	"mov %8,%3\n"
+	"1:\tdec %3\n\t"
 	"js 2f\n\t"
 	"lodsb\n\t"
 	"stosb\n\t"
 	"testb %%al,%%al\n\t"
 	"jne 1b\n"
-	"2:\txorl %2,%2\n\t"
+	"2:\txor %2,%2\n\t"
 	"stosb"
 	: "=&S" (d0), "=&D" (d1), "=&a" (d2), "=&c" (d3)
 	: "0" (src),"1" (dest),"2" (0),"3" (0xffffffff), "g" (count)
@@ -2319,7 +3043,7 @@ return dest;
 
 static inline void * memcpy1(void * to, const void * from, size_t n)
 {
-int d0, d1, d2;
+long d0, d1, d2;
 __asm__ __volatile__(
 	"rep ; movsl\n\t"
 	"testb $2,%b4\n\t"
@@ -2337,7 +3061,7 @@ return (to);
 
 static inline void * memcpy2(void * to, const void * from, size_t n)
 {
-int d0, d1, d2;
+long d0, d1, d2;
 __asm__ __volatile__(
 	"rep movsl\n\t"  /* one-line rep prefix + string op */
 	"testb $2,%b4\n\t"
@@ -2360,7 +3084,7 @@ static __inline__ void sigaddset1(unsigned int *set, int _sig)
 
 static __inline__ void sigdelset1(unsigned int *set, int _sig)
 {
-	asm("btrl %1,%0" : "=m"(*set) : "Ir"(_sig - 1) : "cc");
+	asm("btrl %1,%0" : "=m"(*set) : "Ir"(_sig - 1) : "cc", "flags");
 }
 
 static __inline__ __const__ unsigned int swab32(unsigned int x)
@@ -2368,7 +3092,7 @@ static __inline__ __const__ unsigned int swab32(unsigned int x)
 	__asm__("xchgb %b0,%h0\n\t"	/* swap lower bytes	*/
 		"rorl $16,%0\n\t"	/* swap words		*/
 		"xchgb %b0,%h0"		/* swap higher bytes	*/
-		:"=q" (x)
+		:"=" "q" (x)
 		: "0" (x));
 	return x;
 }
@@ -2376,25 +3100,272 @@ static __inline__ __const__ unsigned int swab32(unsigned int x)
 static __inline__ unsigned long long mul64(unsigned int a, unsigned int b)
 {
     unsigned long long res;
+#ifdef __x86_64__
+    /* Using the A constraint is wrong (it means rdx:rax, which is too large)
+       but still test the 32bit->64bit mull.  */
+    unsigned int resh, resl;
+    __asm__("mull %2" : "=a" (resl), "=d" (resh) : "a" (a), "r" (b));
+    res = ((unsigned long long)resh << 32) | resl;
+#else
     __asm__("mull %2" : "=A" (res) : "a" (a), "r" (b));
+#endif
     return res;
 }
 
 static __inline__ unsigned long long inc64(unsigned long long a)
 {
     unsigned long long res;
+#ifdef __x86_64__
+    /* Using the A constraint is wrong, and increments are tested
+       elsewhere.  */
+    res = a + 1;
+#else
     __asm__("addl $1, %%eax ; adcl $0, %%edx" : "=A" (res) : "A" (a));
+#endif
     return res;
 }
 
+struct struct123 {
+    int a;
+    int b;
+};
+struct struct1231 {
+    unsigned long addr;
+};
+
+unsigned long mconstraint_test(struct struct1231 *r)
+{
+    unsigned long ret;
+    unsigned int a[2];
+    a[0] = 0;
+    __asm__ volatile ("lea %2,%0; movl 4(%0),%k0; addl %2,%k0; movl $51,%2; movl $52,4%2; movl $63,%1"
+	             : "=&r" (ret), "=m" (a)
+	             : "m" (*(struct struct123 *)r->addr));
+    return ret + a[0];
+}
+
+#ifdef __x86_64__
+int fls64(unsigned long long x)
+{
+  int bitpos = -1;
+  asm("bsrq %1,%q0"
+      : "+r" (bitpos)
+      : "rm" (x));
+  return bitpos + 1;
+}
+#endif
+
+void other_constraints_test(void)
+{
+    unsigned long ret;
+    int var;
+#ifndef _WIN64
+    __asm__ volatile ("mov %P1,%0" : "=r" (ret) : "p" (&var));
+    printf ("oc1: %d\n", ret == (unsigned long)&var);
+#endif
+}
+
+#ifndef _WIN32
+/* Test global asm blocks playing with aliases.  */
+void base_func(void)
+{
+  printf ("asmc: base\n");
+}
+
+extern void override_func1 (void);
+extern void override_func2 (void);
+
+asm(".weak override_func1\n.set override_func1, base_func");
+asm(".set override_func1, base_func");
+asm(".set override_func2, base_func");
+
+void override_func2 (void)
+{
+  printf ("asmc: override2\n");
+}
+
+/* This checks a construct used by the linux kernel to encode
+   references to strings by PC relative references.  */
+extern int bug_table[] __attribute__((section("__bug_table")));
+char * get_asm_string (void)
+{
+  extern int some_symbol;
+  asm volatile (".globl some_symbol\n"
+		"jmp .+6\n"
+		"1:\n"
+		"some_symbol: .long 0\n"
+		".pushsection __bug_table, \"a\"\n"
+		".globl bug_table\n"
+		"bug_table:\n"
+		/* The first entry (1b-2b) is unused in this test,
+		   but we include it to check if cross-section
+		   PC-relative references work.  */
+		"2:\t.long 1b - 2b, %c0 - 2b\n"
+		".popsection\n" : : "i" ("A string"));
+  char * str = ((char*)bug_table) + bug_table[1];
+  return str;
+}
+
+/* This checks another constructs with local labels.  */
+extern unsigned char alld_stuff[];
+asm(".data\n"
+    ".byte 41\n"
+    "alld_stuff:\n"
+    "661:\n"
+    ".byte 42\n"
+    "662:\n"
+    ".pushsection .data.ignore\n"
+    ".long 661b - .\n" /* This reference to 661 generates an external sym
+                          which shouldn't somehow overwrite the offset that's
+                          already determined for it.  */
+    ".popsection\n"
+    ".byte 662b - 661b\n"  /* So that this value is undeniably 1.  */);
+
+void asm_local_label_diff (void)
+{
+  printf ("asm_local_label_diff: %d %d\n", alld_stuff[0], alld_stuff[1]);
+}
+
+/* This checks that static local variables are available from assembler.  */
+void asm_local_statics (void)
+{
+  static int localint = 41;
+  asm("incl %0" : "+m" (localint));
+  printf ("asm_local_statics: %d\n", localint);
+}
+#endif
+
+static
 unsigned int set;
+
+void fancy_copy (unsigned *in, unsigned *out)
+{
+  asm volatile ("" : "=r" (*out) : "0" (*in));
+}
+
+void fancy_copy2 (unsigned *in, unsigned *out)
+{
+  asm volatile ("mov %0,(%1)" : : "r" (*in), "r" (out) : "memory");
+}
+
+#if defined __x86_64__ && !defined _WIN64
+void clobber_r12(void)
+{
+    asm volatile("mov $1, %%r12" ::: "r12");
+}
+#endif
+
+void test_high_clobbers(void)
+{
+#if defined __x86_64__ && !defined _WIN64
+    register long val asm("r12");
+    long val2;
+    /* This tests if asm clobbers correctly save/restore callee saved
+       registers if they are clobbered and if it's the high 8 x86-64
+       registers.  This is fragile for GCC as the constraints do not
+       correctly capture the data flow, but good enough for us.  */
+    asm volatile("mov $0x4542, %%r12" : "=r" (val):: "memory");
+    clobber_r12();
+    asm volatile("mov %%r12, %0" : "=r" (val2) : "r" (val): "memory");
+    printf("asmhc: 0x%x\n", val2);
+#endif
+}
+
+static long cpu_number;
+void trace_console(long len, long len2)
+{
+#ifdef __x86_64__
+    /* This generated invalid code when the emission of the switch
+       table isn't disabled.  The asms are necessary to show the bug,
+       normal statements don't work (they need to generate some code
+       even under nocode_wanted, which normal statements don't do,
+       but asms do).  Also at least these number of cases is necessary
+       to generate enough "random" bytes.  They ultimately are enough
+       to create invalid instruction patterns to which the first
+       skip-to-decision-table jump jumps.  If decision table emission
+       is disabled all of this is no problem.
+
+       It also is necessary that the switches are in a statement expression
+       (which has the property of not being enterable from outside. no
+       matter what).  */
+    if (0
+        &&
+            ({
+              long pscr_ret__;
+              switch(len) {
+                case 4:
+                    {
+                       long pfo_ret__;
+                       switch (len2) {
+                         case 8:	printf("bla"); pfo_ret__ = 42; break;
+                       }
+                       pscr_ret__ = pfo_ret__;
+                    }
+                  break;
+                case 8:
+                    {
+                       long pfo_ret__;
+                       switch (len2) {
+                         case 1:asm("movq %1,%0": "=r" (pfo_ret__)	: "m" (cpu_number));	break;
+                         case 2:asm("movq %1,%0": "=r" (pfo_ret__)	: "m" (cpu_number));	break;
+                         case 4:asm("movq %1,%0": "=r" (pfo_ret__)	: "m" (cpu_number));	break;
+                         case 8:asm("movq %1,%0": "=r" (pfo_ret__)	: "m" (cpu_number));	break;
+                         default: printf("impossible\n");
+                       }
+                       pscr_ret__ = pfo_ret__;
+                    };
+                  break;
+              }
+              pscr_ret__;
+            }))
+      {
+        printf("huh?\n");
+      }
+#endif
+}
+
+void test_asm_dead_code(void)
+{
+  long rdi;
+  /* Try to make sure that xdi contains a zero, and hence will
+     lead to a segfault if the next asm is evaluated without
+     arguments being set up.  */
+  asm volatile ("" : "=D" (rdi) : "0" (0));
+  (void)sizeof (({
+      int var;
+      /* This shouldn't trigger a segfault, either the argument
+         registers need to be set up and the asm emitted despite
+	 this being in an unevaluated context, or both the argument
+	 setup _and_ the asm emission need to be suppressed.  The latter
+	 is better.  Disabling asm code gen when suppression is on
+	 also fixes the above trace_console bug, but that came earlier
+	 than asm suppression.  */
+      asm volatile ("movl $0,(%0)" : : "D" (&var) : "memory");
+      var;
+  }));
+}
 
 void asm_test(void)
 {
     char buf[128];
-    unsigned int val;
+    unsigned int val, val2;
+    struct struct123 s1;
+    struct struct1231 s2 = { (unsigned long)&s1 };
+    /* Hide the outer base_func, but check later that the inline
+       asm block gets the outer one.  */
+    int base_func = 42;
+    void override_func3 (void);
+    unsigned long asmret;
+#ifdef BOOL_ISOC99
+    _Bool somebool;
+#endif
+    register int regvar asm("%esi");
 
     printf("inline asm:\n");
+
+    // parse 0x1E-1 as 3 tokens in asm mode
+    asm volatile ("mov $0x1E-1,%eax");
+
     /* test the no operand case */
     asm volatile ("xorl %eax, %eax");
 
@@ -2410,6 +3381,11 @@ void asm_test(void)
     printf("mul64=0x%Lx\n", mul64(0x12345678, 0xabcd1234));
     printf("inc64=0x%Lx\n", inc64(0x12345678ffffffff));
 
+    s1.a = 42;
+    s1.b = 43;
+    printf("mconstraint: %d", mconstraint_test(&s2));
+    printf(" %d %d\n", s1.a, s1.b);
+    other_constraints_test();
     set = 0xff;
     sigdelset1(&set, 2);
     sigaddset1(&set, 16);
@@ -2418,12 +3394,43 @@ void asm_test(void)
     goto label1;
  label2:
     __asm__("btsl %1,%0" : "=m"(set) : "Ir"(20) : "cc");
-#ifdef __GNUC__ // works strange with GCC 4.3
-    set=0x1080fd;
-#endif
     printf("set=0x%x\n", set);
     val = 0x01020304;
     printf("swab32(0x%08x) = 0x%0x\n", val, swab32(val));
+#ifndef _WIN32
+    override_func1();
+    override_func2();
+    /* The base_func ref from the following inline asm should find
+       the global one, not the local decl from this function.  */
+    asm volatile(".weak override_func3\n.set override_func3, base_func");
+    override_func3();
+    printf("asmstr: %s\n", get_asm_string());
+    asm_local_label_diff();
+    asm_local_statics();
+#endif
+    /* Check that we can also load structs of appropriate layout
+       into registers.  */
+    asm volatile("" : "=r" (asmret) : "0"(s2));
+    if (asmret != s2.addr)
+      printf("asmstr: failed\n");
+#ifdef BOOL_ISOC99
+    /* Check that the typesize correctly sets the register size to
+       8 bit.  */
+    asm volatile("cmp %1,%2; sete %0" : "=a"(somebool) : "r"(1), "r"(2));
+    if (!somebool)
+      printf("asmbool: failed\n");
+#endif
+    val = 43;
+    fancy_copy (&val, &val2);
+    printf ("fancycpy(%d)=%d\n", val, val2);
+    val = 44;
+    fancy_copy2 (&val, &val2);
+    printf ("fancycpy2(%d)=%d\n", val, val2);
+    asm volatile ("mov $0x4243, %%esi" : "=r" (regvar));
+    printf ("regvar=%x\n", regvar);
+    test_high_clobbers();
+    trace_console(8, 8);
+    test_asm_dead_code();
     return;
  label1:
     goto label2;
@@ -2447,6 +3454,9 @@ int constant_p_var;
 
 void builtin_test(void)
 {
+    short s;
+    int i;
+    long long ll;
 #if GCC_MAJOR >= 3
     COMPAT_TYPE(int, int);
     COMPAT_TYPE(int, unsigned int);
@@ -2457,6 +3467,8 @@ void builtin_test(void)
     COMPAT_TYPE(int *, void *);
     COMPAT_TYPE(int *, const int *);
     COMPAT_TYPE(char *, unsigned char *);
+    COMPAT_TYPE(char *, signed char *);
+    COMPAT_TYPE(char *, char *);
 /* space is needed because tcc preprocessor introduces a space between each token */
     COMPAT_TYPE(char * *, void *); 
 #endif
@@ -2464,6 +3476,19 @@ void builtin_test(void)
     printf("res = %d\n", __builtin_constant_p(1 + 2));
     printf("res = %d\n", __builtin_constant_p(&constant_p_var));
     printf("res = %d\n", __builtin_constant_p(constant_p_var));
+    printf("res = %d\n", __builtin_constant_p(100000 / constant_p_var));
+    s = 1;
+    ll = 2;
+    i = __builtin_choose_expr (1 != 0, ll, s);
+    printf("bce: %d\n", i);
+    i = __builtin_choose_expr (1 != 1, ll, s);
+    printf("bce: %d\n", i);
+    i = sizeof (__builtin_choose_expr (1, ll, s));
+    printf("bce: %d\n", i);
+    i = sizeof (__builtin_choose_expr (0, ll, s));
+    printf("bce: %d\n", i);
+
+    //printf("bera: %p\n", __builtin_extract_return_addr((void*)43));
 }
 
 #ifndef _WIN32
@@ -2516,6 +3541,7 @@ void __attribute__((weak)) weak_test(void)
 	printf("weak_asm_v1=%d\n",&weak_asm_v1 != NULL);
 	printf("weak_asm_v2=%d\n",&weak_asm_v2 != NULL);
 	printf("weak_asm_v3=%d\n",&weak_asm_v3 != NULL);
+	printf("some_lib_func=%d\n", &some_lib_func ? some_lib_func() : 0);
 }
 
 int __attribute__((weak)) weak_f2() { return 222; }
@@ -2669,7 +3695,7 @@ double get100 () { return 100.0; }
 
 void callsave_test(void)
 {
-#if defined __i386__ || defined __x86_64__
+#if defined __i386__ || defined __x86_64__ || defined __arm__
   int i, s; double *d; double t;
   s = sizeof (double);
   printf ("callsavetest: %d\n", s);
@@ -2698,16 +3724,90 @@ void bfa2(ptrdiff_t str_offset)
 void bfa1(ptrdiff_t str_offset)
 {
     printf("bfa1: %s\n", (char *)__builtin_frame_address(1) + str_offset);
-#if defined(__arm__) && !defined(__GNUC__)
     bfa2(str_offset);
-#endif
 }
 
 void builtin_frame_address_test(void)
 {
+/* builtin_frame_address fails on ARM with gcc which make test3 fail */
+#ifndef __arm__
     char str[] = "__builtin_frame_address";
     char *fp0 = __builtin_frame_address(0);
 
     printf("str: %s\n", str);
     bfa1(str-fp0);
+#endif
+}
+
+char via_volatile (char i)
+{
+  char volatile vi;
+  vi = i;
+  return vi;
+}
+
+struct __attribute__((__packed__)) Spacked {
+    char a;
+    short b;
+    int c;
+};
+struct Spacked spacked;
+typedef struct __attribute__((__packed__)) {
+    char a;
+    short b;
+    int c;
+} Spacked2;
+Spacked2 spacked2;
+typedef struct Spacked3_s {
+    char a;
+    short b;
+    int c;
+} __attribute__((__packed__)) Spacked3;
+Spacked3 spacked3;
+struct gate_struct64 {
+    unsigned short offset_low;
+    unsigned short segment;
+    unsigned ist : 3, zero0 : 5, type : 5, dpl : 2, p : 1;
+    unsigned short offset_middle;
+    unsigned offset_high;
+    unsigned zero1;
+} __attribute__((packed));
+typedef struct gate_struct64 gate_desc;
+gate_desc a_gate_desc;
+void attrib_test(void)
+{
+#ifndef _WIN32
+  printf("attr: %d %d %d %d\n", sizeof(struct Spacked),
+	 sizeof(spacked), sizeof(Spacked2), sizeof(spacked2));
+  printf("attr: %d %d\n", sizeof(Spacked3), sizeof(spacked3));
+  printf("attr: %d %d\n", sizeof(gate_desc), sizeof(a_gate_desc));
+#endif
+}
+extern __attribute__((__unused__)) char * __attribute__((__unused__)) *
+strange_attrib_placement (void);
+
+void * __attribute__((__unused__)) get_void_ptr (void *a)
+{
+  return a;
+}
+
+/* This part checks for a bug in TOK_GET (used for inline expansion),
+   where the large long long constant left the the high bits set for
+   the integer constant token.  */
+static inline
+int __get_order(unsigned long long size)
+{
+  int order;
+  size -= 0xffff880000000000ULL; // this const left high bits set in the token
+    {
+      struct S { int i : 1; } s; // constructed for this '1'
+    }
+  order = size;
+  return order;
+}
+
+/* This just forces the above inline function to be actually emitted.  */
+int force_get_order(unsigned long s)
+{
+    return __get_order(s);
 }
